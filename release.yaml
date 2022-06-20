@@ -1,0 +1,77 @@
+# ingress-nginx-internal for dev1
+
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: ingress-nginx-internal
+  namespace: ingress-nginx-internal
+spec:
+  values:
+    controller:
+      config:
+        server-snippet: |
+          listen 8000;
+          if ( $server_port = 80 ) {
+            return 308 https://$host$request_uri;
+          }
+        ssl-redirect: "false"
+      containerPort:
+        http: 80
+        https: 443
+        special: 8000
+      electionID: ingress-controller-leader-dev1
+      extraArgs:
+        ingress-class: k8s.io/nginx-dev1
+      ingressClassByName: true
+      ingressClassResource:
+        controllerValue: k8s.io/ingress-nginx-dev1
+        default: false
+        enabled: true
+        name: nginx-dev1
+      service:
+        enableHttp: true
+        ports:
+          http: 80
+          https: 443
+          amqp: 5672
+          stats: 15672
+        targetPorts:
+          http: http
+          https: special
+          amqp: amqp
+          stats: stats
+        external:
+          enabled: false
+        internal:
+          annotations:
+            service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+            service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+            service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+            service.beta.kubernetes.io/aws-load-balancer-name: eks-rcm-internal-nlb
+            service.beta.kubernetes.io/aws-load-balancer-scheme: internal
+            service.beta.kubernetes.io/aws-load-balancer-subnets: subnet-05bed3b41b3a34dba,subnet-0a9aca6b2a91d6795
+            service.beta.kubernetes.io/aws-load-balancer-type: nlb
+          enabled: true
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: environment
+                operator: In
+                values:
+                - "dev1"
+      tolerations:
+      - key: "environment"
+        operator: "Equal"
+        value: "dev1"
+        effect: "NoSchedule"
+      admissionWebhooks:
+        patch:
+            nodeSelector:
+              environment: "dev1"
+            tolerations:
+            - key: "environment"
+              operator: "Equal"
+              value: "dev1"
+              effect: "NoSchedule"
